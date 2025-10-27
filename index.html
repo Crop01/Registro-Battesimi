@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Registri Battesimi</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <img src="assets/logoAdroAI.jpg" 
+                    alt="Chiesa" 
+                    style="height: 60px; vertical-align: middle; margin-right: 30px;">
+                Registri Parrocchiali
+            </h1>
+            <div class="user-info" id="user-info">Caricamento...</div>
+        </header>
+        
+        <main>
+            <div class="sidebar">
+                <h3>Libri disponibili</h3>
+                <div id="books-list">
+                    <!-- Lista libri verrà popolata da JS -->
+                </div>
+                
+                <div class="search-section">
+                    <h4>Ricerca per Anno</h4>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="number" 
+                               id="search-year" 
+                               placeholder="Anno (es. 1650)"
+                               min="1500" 
+                               max="2025"
+                               style="flex: 1;">
+                        <button onclick="searchByYear()" style="width: auto; padding: 0.6rem;">
+                            🔍
+                        </button>
+                    </div>
+                    <small style="color: #666; font-size: 0.8rem; margin-top: 0.5rem; display: block;">
+                        Premi Invio o clicca 🔍 per cercare
+                    </small>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div id="book-viewer">
+                    <p>Seleziona un libro dalla lista per iniziare</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

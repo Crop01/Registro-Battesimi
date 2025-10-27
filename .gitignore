@@ -1,0 +1,49 @@
+# Dipendenze Node.js
+node_modules/
+
+# File di build e distribuzione Electron
+dist/
+build/
+*.exe
+*.dmg
+*.AppImage
+
+# File di sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# File di configurazione locale
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# File temporanei
+*.tmp
+*.temp
+.cache/
+
+# Variabili d'ambiente (se usi file .env)
+.env
+.env.local
+
+# IDE e editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database SQLite locale (opzionale - dipende se vuoi condividerlo)
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup
+*.bak
+*.backup
+
+#non carico la cartella delle immagini
+
+images/

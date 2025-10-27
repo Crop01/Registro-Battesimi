@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Accesso - Registri Battesimi</title>
+    <link rel="stylesheet" href="login-styles.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <h2>
+                    <img src="assets/logoAdroAI.jpg" 
+                    alt="Chiesa" 
+                    style="height: 45px; vertical-align: middle; margin-right: 15px;">
+                    Registri Parrocchiali</h2>
+                <p>Accesso riservato</p>
+            </div>
+            
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username">Nome utente:</label>
+                    <select id="username" required>
+                        <option value="">Seleziona utente...</option>
+                        <option value="don.adro">Don Adro</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" required placeholder="Inserisci la password">
+                </div>
+                
+                <button type="submit" id="login-btn">Accedi</button>
+                
+                <div id="error-message" class="error-message" style="display: none;"></div>
+            </form>
+            
+            <div class="login-footer">
+                <small>Sistema di gestione registri battesimali<br>
+                Per problemi di accesso contattare l'amministratore</small>
+            </div>
+        </div>
+    </div>
+    
+    <script src="login.js"></script>
+</body>
+</html>
