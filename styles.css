@@ -941,3 +941,76 @@ button:focus-visible {
         page-break-inside: avoid;
     }
 }
+
+/* Aggiungi alla fine del file styles.css */
+
+@keyframes zoomFade {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    20% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+    80% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+}
+
+/* Migliora lo stile delle immagini per supportare meglio lo zoom */
+.page-image,
+.continuous-image {
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.page-image:active,
+.continuous-image:active {
+    cursor: grabbing;
+}
+
+.reset-zoom-btn {
+    background: var(--color-blue);
+    color: white;
+    border: none;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    font-size: var(--font-base);
+    transition: all var(--transition-base);
+    font-weight: 600;
+    width: auto;
+    white-space: nowrap;
+}
+
+.reset-zoom-btn:hover {
+    background: var(--color-blue-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.config-btn {
+    background: var(--color-info);
+    color: white;
+    border: none;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    font-size: var(--font-base);
+    transition: all var(--transition-base);
+    font-weight: 600;
+    width: auto;
+    white-space: nowrap;
+}
+
+.config-btn:hover {
+    background: var(--color-info-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}

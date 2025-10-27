@@ -12,11 +12,20 @@ class RegistriBattesimi {
         this._yearDialogKeyHandler = null;
         this._pageInputHandler = null;        // ← NUOVO
         this._searchInputHandler = null;      // ← NUOVO
+
+        this.imageZoomLevels = new Map(); // Tiene traccia dello zoom di ogni immagine
+        this.minZoom = 0.5;               // Zoom minimo (50%)
+        this.maxZoom = 3.0;               // Zoom massimo (300%)
+        this.zoomStep = 0.1;              // Incremento zoom (10%)
+
+        this.paginationConfig = {};  // Configurazione paginazione per libro
+
         this.init();
     }
 
     async init() {
         await this.loadPageAnnotations();
+        await this.loadPaginationConfig();
         await this.loadBooks();
         this.renderBooksList();
 
@@ -196,6 +205,175 @@ class RegistriBattesimi {
         });
     }
 
+    showPaginationConfigDialog() {
+        if (!this.currentBook) {
+            this.showNotification('Seleziona prima un libro', 'warning');
+            return;
+        }
+        
+        const existingDialog = document.getElementById('pagination-config-dialog');
+        if (existingDialog) existingDialog.remove();
+        
+        const config = this.getBookPaginationConfig(this.currentBook.id);
+        
+        const dialogHtml = `
+            <div id="pagination-config-dialog" style="
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.6); display: flex; justify-content: center; 
+                align-items: center; z-index: 10000;">
+                <div style="background: white; padding: 2rem; border-radius: 12px; 
+                    max-width: 600px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                    
+                    <h3 style="margin-bottom: 1rem; color: #8B4513; border-bottom: 2px solid #8B4513; 
+                        padding-bottom: 0.5rem;">
+                        ⚙️ Configurazione Paginazione: ${this.currentBook.name}
+                    </h3>
+                    
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                            Modalità Paginazione:
+                        </label>
+                        <select id="pagination-mode" style="width: 100%; padding: 0.5rem; border: 2px solid #ddd; 
+                            border-radius: 4px; font-size: 1rem;">
+                            <option value="auto-single" ${config.mode === 'auto-single' ? 'selected' : ''}>
+                                📄 Automatica - 1 pagina per immagine
+                            </option>
+                            <option value="auto-double" ${config.mode === 'auto-double' ? 'selected' : ''}>
+                                📖 Automatica - 2 pagine per immagine
+                            </option>
+                            <option value="manual" ${config.mode === 'manual' ? 'selected' : ''}>
+                                ⚙️ Manuale (con eccezioni)
+                            </option>
+                        </select>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                                Prima Pagina:
+                            </label>
+                            <input type="number" id="start-page" value="${config.startPage}" min="1" 
+                                style="width: 100%; padding: 0.5rem; border: 2px solid #ddd; 
+                                border-radius: 4px; font-size: 1rem;">
+                            <small style="color: #666;">Numero della prima pagina numerata</small>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                                Salta Immagini:
+                            </label>
+                            <input type="number" id="skip-images" value="${config.skipImages}" min="0" 
+                                style="width: 100%; padding: 0.5rem; border: 2px solid #ddd; 
+                                border-radius: 4px; font-size: 1rem;">
+                            <small style="color: #666;">Copertine/introduzioni da saltare</small>
+                        </div>
+                    </div>
+                    
+                    <div id="manual-config" style="margin-bottom: 1.5rem; display: ${config.mode === 'manual' ? 'block' : 'none'};">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                            Pagine per Immagine (predefinito):
+                        </label>
+                        <select id="default-pages" style="width: 100%; padding: 0.5rem; border: 2px solid #ddd; 
+                            border-radius: 4px; font-size: 1rem; margin-bottom: 1rem;">
+                            <option value="1" ${config.defaultPagesPerImage === 1 ? 'selected' : ''}>1 pagina</option>
+                            <option value="2" ${config.defaultPagesPerImage === 2 ? 'selected' : ''}>2 pagine</option>
+                        </select>
+                        
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                            Eccezioni (formato: indiceImmagine:numeroPagine):
+                        </label>
+                        <textarea id="exceptions-text" style="width: 100%; padding: 0.5rem; border: 2px solid #ddd; 
+                            border-radius: 4px; font-size: 0.9rem; font-family: monospace; min-height: 80px;"
+                            placeholder="Esempio:&#10;2:1&#10;5:1">${this.formatExceptions(config.exceptions)}</textarea>
+                        <small style="color: #666;">
+                            Una riga per eccezione. Esempio: "2:1" = l'immagine 2 ha 1 pagina
+                        </small>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+                        <button id="cancel-pagination-btn" style="background: #6c757d; color: white; 
+                            border: none; padding: 0.6rem 1.5rem; border-radius: 6px; cursor: pointer; 
+                            font-weight: 600;">
+                            ✕ Annulla
+                        </button>
+                        <button id="save-pagination-btn" style="background: #28a745; color: white; 
+                            border: none; padding: 0.6rem 1.5rem; border-radius: 6px; cursor: pointer; 
+                            font-weight: 600;">
+                            ✓ Salva
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', dialogHtml);
+        
+        // Event listeners
+        document.getElementById('pagination-mode').addEventListener('change', (e) => {
+            const manualConfig = document.getElementById('manual-config');
+            manualConfig.style.display = e.target.value === 'manual' ? 'block' : 'none';
+        });
+        
+        document.getElementById('cancel-pagination-btn').addEventListener('click', () => {
+            document.getElementById('pagination-config-dialog').remove();
+        });
+        
+        document.getElementById('save-pagination-btn').addEventListener('click', () => {
+            this.savePaginationConfigFromDialog();
+        });
+    }
+
+    formatExceptions(exceptions) {
+        return Object.entries(exceptions)
+            .map(([index, pages]) => `${index}:${pages}`)
+            .join('\n');
+    }
+
+    parseExceptions(text) {
+        const exceptions = {};
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        lines.forEach(line => {
+            const [index, pages] = line.split(':').map(s => s.trim());
+            if (index && pages) {
+                exceptions[index] = parseInt(pages);
+            }
+        });
+        
+        return exceptions;
+    }
+
+    savePaginationConfigFromDialog() {
+        const mode = document.getElementById('pagination-mode').value;
+        const startPage = parseInt(document.getElementById('start-page').value);
+        const skipImages = parseInt(document.getElementById('skip-images').value);
+        const defaultPages = parseInt(document.getElementById('default-pages').value);
+        const exceptionsText = document.getElementById('exceptions-text').value;
+        
+        const config = {
+            mode: mode,
+            startPage: startPage,
+            skipImages: skipImages,
+            defaultPagesPerImage: mode === 'auto-single' ? 1 : (mode === 'auto-double' ? 2 : defaultPages),
+            exceptions: mode === 'manual' ? this.parseExceptions(exceptionsText) : {}
+        };
+        
+        // Salva la configurazione
+        this.paginationConfig[this.currentBook.id] = config;
+        this.savePaginationConfig();
+        
+        // Ricalcola le pagine totali
+        this.currentBook.totalPages = this.calculateTotalPages(this.currentBook);
+        
+        // Ricarica la vista
+        this.selectBook(this.currentBook);
+        
+        // Chiudi dialog
+        document.getElementById('pagination-config-dialog').remove();
+        
+        this.showNotification('Configurazione salvata con successo!', 'success');
+    }
+
     formatPageRanges(pages) {
         if (pages.length === 0) return '';
         if (pages.length === 1) return pages[0].toString();
@@ -234,6 +412,53 @@ class RegistriBattesimi {
             console.error('Errore caricamento annotazioni:', error);
             this.pageAnnotations = {};
         }
+    }
+
+    // Carica configurazione paginazione
+    async loadPaginationConfig() {
+        try {
+            const configPath = path.join(__dirname, 'book-pagination-config.json');
+            if (fs.existsSync(configPath)) {
+                const data = fs.readFileSync(configPath, 'utf8');
+                this.paginationConfig = JSON.parse(data);
+                console.log('📄 Configurazione paginazione caricata:', this.paginationConfig);
+            } else {
+                console.log('📄 File configurazione paginazione non trovato, creando vuoto...');
+                this.paginationConfig = {};
+                this.savePaginationConfig();
+            }
+        } catch (error) {
+            console.error('❌ Errore caricamento configurazione paginazione:', error);
+            this.paginationConfig = {};
+        }
+    }
+
+    // Salva configurazione paginazione
+    savePaginationConfig() {
+        try {
+            const configPath = path.join(__dirname, 'book-pagination-config.json');
+            fs.writeFileSync(configPath, JSON.stringify(this.paginationConfig, null, 2), 'utf8');
+            console.log('💾 Configurazione paginazione salvata');
+        } catch (error) {
+            console.error('❌ Errore salvataggio configurazione paginazione:', error);
+        }
+    }
+
+    // Ottieni configurazione per un libro specifico
+    getBookPaginationConfig(bookId) {
+        // Se esiste una configurazione specifica, usala
+        if (this.paginationConfig[bookId]) {
+            return this.paginationConfig[bookId];
+        }
+        
+        // Altrimenti usa la configurazione di default (retrocompatibilità)
+        return {
+            mode: 'auto-double',      // Comportamento predefinito: 2 pagine per immagine
+            startPage: 1,
+            skipImages: 0,
+            defaultPagesPerImage: 2,
+            exceptions: {}
+        };
     }
 
     // Salva annotazioni
@@ -434,17 +659,43 @@ class RegistriBattesimi {
 
     setYearFromCurrentPage(year) {
         const bookId = this.currentBook.id;
-        const startPageNum = this.currentPage + 1; // Converti a 1-based
-        const totalPages = this.currentBook.totalPages;
+        
+        // Ottieni i numeri di pagina REALI dell'immagine corrente
+        const currentPageNumbers = this.getPageNumbersFromPhotoIndex(this.currentPage, this.currentBook);
+        
+        // Se è una copertina, blocca l'operazione
+        if (currentPageNumbers[0] === 'Copertina') {
+            this.showNotification('Non puoi annotare una copertina', 'warning');
+            return;
+        }
+        
+        // Il primo numero di pagina reale da cui iniziare
+        const startPageNum = currentPageNumbers[0];
         
         // Inizializza se non esiste
         if (!this.pageAnnotations[bookId]) {
             this.pageAnnotations[bookId] = {};
         }
         
+        // Raccogli TUTTI i numeri di pagina dall'immagine corrente in poi
+        const allPagesFromCurrent = [];
+        for (let photoIndex = this.currentPage; photoIndex < this.currentBook.images.length; photoIndex++) {
+            const pageNums = this.getPageNumbersFromPhotoIndex(photoIndex, this.currentBook);
+            
+            // Salta copertine
+            if (pageNums[0] === 'Copertina') {
+                continue;
+            }
+            
+            // Aggiungi tutti i numeri di pagina di questa immagine
+            allPagesFromCurrent.push(...pageNums);
+        }
+        
         // Rimuovi le pagine dalla pagina corrente in poi da tutti gli altri anni
         for (const [existingYear, pages] of Object.entries(this.pageAnnotations[bookId])) {
+            // Filtra solo le pagine che sono PRIMA della pagina corrente
             this.pageAnnotations[bookId][existingYear] = pages.filter(page => page < startPageNum);
+            
             // Rimuovi anni vuoti
             if (this.pageAnnotations[bookId][existingYear].length === 0) {
                 delete this.pageAnnotations[bookId][existingYear];
@@ -456,12 +707,12 @@ class RegistriBattesimi {
             this.pageAnnotations[bookId][year] = [];
         }
         
-        // Aggiungi tutte le pagine dalla corrente alla fine
-        for (let pageNum = startPageNum; pageNum <= totalPages; pageNum++) {
+        // Aggiungi tutte le pagine raccolte
+        allPagesFromCurrent.forEach(pageNum => {
             if (!this.pageAnnotations[bookId][year].includes(pageNum)) {
                 this.pageAnnotations[bookId][year].push(pageNum);
             }
-        }
+        });
         
         // Ordina le pagine
         this.pageAnnotations[bookId][year].sort((a, b) => a - b);
@@ -469,10 +720,17 @@ class RegistriBattesimi {
         this.savePageAnnotations();
         this.renderBookViewer(); // Aggiorna la vista
         
-        const pagesCount = totalPages - startPageNum + 1;
-        this.showAlert(`Anno ${year} impostato per ${pagesCount} pagine (dalla ${startPageNum} alla ${totalPages})`);
+        const pagesCount = allPagesFromCurrent.length;
+        const pageDisplay = currentPageNumbers.length === 1 ? 
+            `pagina ${currentPageNumbers[0]}` : 
+            `pagine ${currentPageNumbers[0]}-${currentPageNumbers[1]}`;
+        
+        this.showNotification(
+            `Anno ${year} impostato per ${pagesCount} pagine da ${pageDisplay} in poi`, 
+            'success'
+        );
     }
-
+    
     /*
     // SOSTITUISCI ANCHE GLI alert() CON QUESTO METODO:
     showAlert(message) {
@@ -663,25 +921,22 @@ class RegistriBattesimi {
 
                     const hasDoublePages = /^[2-9]\./i.test(folder) || folder.includes('Registro2');
                     // Calcola le pagine
-                    let totalPages;
-                    if (hasDoublePages) {
-                        totalPages = this.calculateDoublePagesCount(sortedImages.length);
-                    } else {
-                        // Per il primo libro, sottrai 1 (copertina non conta)
-                        const isFirstBook = this.books.length === 0; // È il primo se l'array è ancora vuoto
-                        totalPages = isFirstBook ? sortedImages.length - 1 : sortedImages.length;
-                    }
+                    let totalPages = 0;  // Verrà calcolato dopo
 
-                    this.books.push({
+                    const book = {
                         id: folder,
                         name: folder.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
                         folder: folder,
                         images: sortedImages,
                         startYear: parseInt(startYear),
                         endYear: parseInt(endYear),
-                        totalPages: totalPages,
-                        hasDoublePages: hasDoublePages
-                    });
+                        totalPages: 0  // Temporaneo
+                    };
+
+                    // Calcola il numero totale di pagine usando la configurazione
+                    book.totalPages = this.calculateTotalPages(book);
+
+                    this.books.push(book);
                 }
             }
 
@@ -704,28 +959,56 @@ class RegistriBattesimi {
     }
 
     getPageNumbersFromPhotoIndex(photoIndex, book) {
-        const isFirstBook = this.books.indexOf(book) === 0;
-    
-        if (!book.hasDoublePages) {
-            if (isFirstBook && photoIndex === 0) {
-                return ['Copertina']; // Prima foto = Copertina
-            }
-            if (isFirstBook) {
-                return [photoIndex]; // Le altre foto partono da 1
-            }
-            return [photoIndex + 1];
+        // Ottieni la configurazione per questo libro
+        const config = this.getBookPaginationConfig(book.id);
+        
+        // Se l'immagine è tra quelle da saltare, non ha numeri di pagina
+        if (photoIndex < config.skipImages) {
+            return ['Copertina'];
         }
         
-        const totalPhotos = book.images.length;
-        if (photoIndex === 0) return [1];
-        if (photoIndex === 1) return [2];
-        if (photoIndex === totalPhotos - 1) {
-            return [this.calculateDoublePagesCount(totalPhotos)];
+        // Calcola l'indice effettivo (saltando le copertine)
+        const effectiveIndex = photoIndex - config.skipImages;
+        
+        // Controlla se c'è un'eccezione per questa immagine
+        const pagesInThisImage = config.exceptions[photoIndex] || config.defaultPagesPerImage;
+        
+        // Calcola il numero di pagina iniziale
+        let currentPageNumber = config.startPage;
+        
+        // Somma le pagine di tutte le immagini precedenti
+        for (let i = config.skipImages; i < photoIndex; i++) {
+            const pagesInImage = config.exceptions[i] || config.defaultPagesPerImage;
+            currentPageNumber += pagesInImage;
         }
         
-        const middlePhotoIndex = photoIndex - 2;
-        const firstPage = 3 + (middlePhotoIndex * 2);
-        return [firstPage, firstPage + 1];
+        // Restituisci il numero o i numeri di pagina
+        if (pagesInThisImage === 1) {
+            return [currentPageNumber];
+        } else if (pagesInThisImage === 2) {
+            return [currentPageNumber, currentPageNumber + 1];
+        } else {
+            // Supporto per più di 2 pagine (futuro)
+            const pages = [];
+            for (let i = 0; i < pagesInThisImage; i++) {
+                pages.push(currentPageNumber + i);
+            }
+            return pages;
+        }
+    }
+
+    // Metodo helper per ottenere il numero totale di pagine
+    calculateTotalPages(book) {
+        const config = this.getBookPaginationConfig(book.id);
+        let totalPages = 0;
+        
+        // Conta le pagine saltando le copertine
+        for (let i = config.skipImages; i < book.images.length; i++) {
+            const pagesInImage = config.exceptions[i] || config.defaultPagesPerImage;
+            totalPages += pagesInImage;
+        }
+        
+        return totalPages;
     }
 
     getPhotoIndexFromPageNumber(pageNumber, book) {
@@ -1015,8 +1298,14 @@ class RegistriBattesimi {
                         <button onclick="app.showCurrentAnnotations()" class="info-btn">
                             ℹ️ Vedi Annotazioni
                         </button>
+                        <button onclick="app.resetAllZoom()" class="reset-zoom-btn">
+                            🔄 Reset Zoom
+                        </button>
                         <button id="view-toggle" onclick="app.toggleViewMode()" class="view-toggle-btn">
                             📄→📋 Vista Continua
+                        </button>
+                        <button onclick="app.showPaginationConfigDialog()" class="config-btn">
+                            ⚙️ Configura Paginazione
                         </button>
                     </div>
                 </div>
@@ -1053,7 +1342,9 @@ class RegistriBattesimi {
                 </div>
                 
                 <div class="image-container single-view">
-                    <img src="${imagePath}" class="page-image" alt="${pageDisplay}" onclick="app.zoomImage(this)">
+                    <img src="${imagePath}" class="page-image" alt="${pageDisplay}" 
+                        onclick="app.zoomImage(this)" 
+                        onload="app.setupImageZoomListeners(this)">                
                 </div>
                 
                 <div class="page-info">
@@ -1089,7 +1380,9 @@ class RegistriBattesimi {
                         <span class="page-filename">${image}</span>
                     </div>
                     <img src="${imagePath}" class="continuous-image" alt="${pageDisplay}" 
-                        onclick="app.zoomImage(this)" loading="lazy">
+                        onclick="app.zoomImage(this)" 
+                        onload="app.setupImageZoomListeners(this)" 
+                        loading="lazy">
                 </div>
             `;
         });
@@ -1111,6 +1404,7 @@ class RegistriBattesimi {
                         <button onclick="app.changeImageSize('small')" class="size-btn">🔍- Piccole</button>
                         <button onclick="app.changeImageSize('medium')" class="size-btn">🔍 Medie</button>
                         <button onclick="app.changeImageSize('large')" class="size-btn">🔍+ Grandi</button>
+                        <button onclick="app.resetAllZoom()" class="reset-zoom-btn">🔄 Reset Zoom</button>
                         <button onclick="app.scrollToTop()" class="scroll-btn">⬆️ Inizio</button>
                         <button onclick="app.scrollToBottom()" class="scroll-btn">⬇️ Ultima pagina caricata</button>
                     </div>
@@ -1159,18 +1453,234 @@ class RegistriBattesimi {
         }
     }
 
-    // Aggiorna il metodo di zoom per gestire entrambe le modalità
     zoomImage(img) {
-        if (img.style.transform === 'scale(1.5)') {
-            img.style.transform = 'scale(1)';
-            img.style.cursor = 'zoom-in';
-            img.style.zIndex = 'auto';
-        } else {
-            img.style.transform = 'scale(1.5)';
+        // Ottieni il livello di zoom corrente per questa immagine
+        const currentZoom = this.imageZoomLevels.get(img) || 1.0;
+        
+        // Toggle tra zoom 1.0 e 2.0 al click
+        const newZoom = currentZoom === 1.0 ? 2.0 : 1.0;
+        
+        this.setImageZoom(img, newZoom);
+    }
+
+    // ← AGGIUNGI QUESTO NUOVO METODO dopo zoomImage
+    setImageZoom(img, zoomLevel) {
+        // Limita lo zoom tra min e max
+        zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, zoomLevel));
+        
+        // Salva il livello di zoom
+        this.imageZoomLevels.set(img, zoomLevel);
+        
+        // Applica il transform
+        img.style.transform = `scale(${zoomLevel})`;
+        img.style.transformOrigin = 'center center';
+        img.style.transition = 'transform 0.2s ease-out';
+        
+        // Cambia il cursore in base allo zoom
+        if (zoomLevel > 1.0) {
             img.style.cursor = 'zoom-out';
             img.style.zIndex = '1000';
             img.style.position = 'relative';
+        } else {
+            img.style.cursor = 'zoom-in';
+            img.style.zIndex = 'auto';
         }
+        
+        // Mostra un indicatore temporaneo del livello di zoom
+        this.showZoomIndicator(Math.round(zoomLevel * 100));
+    }
+
+    // ← AGGIUNGI QUESTO METODO per l'indicatore visivo
+    showZoomIndicator(percentage) {
+        // Rimuovi indicatore esistente
+        const existing = document.getElementById('zoom-indicator');
+        if (existing) existing.remove();
+        
+        // Crea nuovo indicatore
+        const indicator = document.createElement('div');
+        indicator.id = 'zoom-indicator';
+        indicator.textContent = `${percentage}%`;
+        indicator.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            z-index: 10000;
+            pointer-events: none;
+            animation: zoomFade 0.6s ease-out;
+        `;
+        
+        document.body.appendChild(indicator);
+        
+        // Rimuovi dopo l'animazione
+        setTimeout(() => indicator.remove(), 600);
+    }
+
+    // ← AGGIUNGI QUESTO NUOVO METODO
+    setupImageZoomListeners(img) {
+        // Previeni il comportamento predefinito dello scroll
+        let isZooming = false;
+        
+        // Zoom con rotella del mouse / touchpad
+        const handleWheel = (e) => {
+            // Solo se CTRL è premuto (standard per zoom)
+            if (e.ctrlKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const currentZoom = this.imageZoomLevels.get(img) || 1.0;
+                
+                // deltaY negativo = scroll su = zoom in
+                // deltaY positivo = scroll giù = zoom out
+                const zoomChange = e.deltaY > 0 ? -this.zoomStep : this.zoomStep;
+                const newZoom = currentZoom + zoomChange;
+                
+                this.setImageZoom(img, newZoom);
+                
+                isZooming = true;
+                setTimeout(() => isZooming = false, 100);
+            }
+        };
+        
+        // Zoom con pinch sul touchpad (gesto due dita)
+        let initialDistance = 0;
+        let initialZoom = 1.0;
+        
+        const handleTouchStart = (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                initialDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                initialZoom = this.imageZoomLevels.get(img) || 1.0;
+            }
+        };
+        
+        const handleTouchMove = (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const currentDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                
+                const scale = currentDistance / initialDistance;
+                const newZoom = initialZoom * scale;
+                
+                this.setImageZoom(img, newZoom);
+            }
+        };
+        
+        // Aggiungi gli event listeners
+        img.addEventListener('wheel', handleWheel, { passive: false });
+        img.addEventListener('touchstart', handleTouchStart, { passive: false });
+        img.addEventListener('touchmove', handleTouchMove, { passive: false });
+        
+        // Salva i riferimenti per poterli rimuovere dopo
+        img._zoomListeners = { handleWheel, handleTouchStart, handleTouchMove };
+    }
+
+    // ← AGGIUNGI QUESTO NUOVO METODO
+    setupImageZoomListeners(img) {
+        // Previeni il comportamento predefinito dello scroll
+        let isZooming = false;
+        
+        // Zoom con rotella del mouse / touchpad
+        const handleWheel = (e) => {
+            // Solo se CTRL è premuto (standard per zoom)
+            if (e.ctrlKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const currentZoom = this.imageZoomLevels.get(img) || 1.0;
+                
+                // deltaY negativo = scroll su = zoom in
+                // deltaY positivo = scroll giù = zoom out
+                const zoomChange = e.deltaY > 0 ? -this.zoomStep : this.zoomStep;
+                const newZoom = currentZoom + zoomChange;
+                
+                this.setImageZoom(img, newZoom);
+                
+                isZooming = true;
+                setTimeout(() => isZooming = false, 100);
+            }
+        };
+        
+        // Zoom con pinch sul touchpad (gesto due dita)
+        let initialDistance = 0;
+        let initialZoom = 1.0;
+        
+        const handleTouchStart = (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                initialDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                initialZoom = this.imageZoomLevels.get(img) || 1.0;
+            }
+        };
+        
+        const handleTouchMove = (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const currentDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                
+                const scale = currentDistance / initialDistance;
+                const newZoom = initialZoom * scale;
+                
+                this.setImageZoom(img, newZoom);
+            }
+        };
+        
+        // Aggiungi gli event listeners
+        img.addEventListener('wheel', handleWheel, { passive: false });
+        img.addEventListener('touchstart', handleTouchStart, { passive: false });
+        img.addEventListener('touchmove', handleTouchMove, { passive: false });
+        
+        // Salva i riferimenti per poterli rimuovere dopo
+        img._zoomListeners = { handleWheel, handleTouchStart, handleTouchMove };
+    }
+
+    // Nuovo metodo per resettare tutto lo zoom
+    resetAllZoom() {
+        const images = document.querySelectorAll('.page-image, .continuous-image');
+        
+        if (images.length === 0) {
+            this.showNotification('Nessuna immagine da resettare', 'info');
+            return;
+        }
+        
+        images.forEach(img => {
+            this.setImageZoom(img, 1.0);
+            this.imageZoomLevels.delete(img);
+            
+            // Reset completo degli stili
+            img.style.transform = 'scale(1)';
+            img.style.cursor = 'zoom-in';
+            img.style.zIndex = 'auto';
+            img.style.position = 'static';
+        });
+        
+        this.showNotification('Zoom ripristinato al 100%', 'success');
     }
 
     // Nuovo metodo per cambiare dimensione immagini
