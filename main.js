@@ -21,7 +21,7 @@ function createLoginWindow() {
         title: 'Accesso - Registri Battesimi',
         show: false,
         frame: true,
-        icon: path.join(__dirname, 'chiesa.ico')
+        icon: path.join(__dirname, 'logo.ico')
     })
 
     loginWindow.loadFile('login.html')
@@ -50,7 +50,7 @@ function createMainWindow() {
         resizable: true,         // Assicurati che sia true
         minimizable: true,
         maximizable: true,
-        icon: path.join(__dirname, 'chiesa.ico')
+        icon: path.join(__dirname, 'logo.ico')
     })
 
     mainWindow.loadFile('index.html')

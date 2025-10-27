@@ -79,27 +79,51 @@ class RegistriBattesimi {
         const existing = document.getElementById('custom-notification');
         if (existing) existing.remove();
         
-        let backgroundColor, borderColor;
+        let backgroundColor, borderColor, icon;
         switch(type) {
-            case 'success': backgroundColor = '#d4edda'; borderColor = '#28a745'; break;
-            case 'error': backgroundColor = '#f8d7da'; borderColor = '#dc3545'; break;
-            case 'warning': backgroundColor = '#fff3cd'; borderColor = '#ffc107'; break;
-            default: backgroundColor = '#d1ecf1'; borderColor = '#17a2b8';
+            case 'success': 
+                backgroundColor = '#d4edda'; 
+                borderColor = '#28a745'; 
+                icon = '✅';
+                break;
+            case 'error': 
+                backgroundColor = '#f8d7da'; 
+                borderColor = '#dc3545'; 
+                icon = '❌';
+                break;
+            case 'warning': 
+                backgroundColor = '#fff3cd'; 
+                borderColor = '#ffc107'; 
+                icon = '⚠️';
+                break;
+            default: 
+                backgroundColor = '#d1ecf1'; 
+                borderColor = '#17a2b8';
+                icon = 'ℹ️';
         }
         
         const notificationHtml = `
             <div id="custom-notification" style="
                 position: fixed; top: 20px; right: 20px;
-                background: ${backgroundColor}; border: 2px solid ${borderColor};
-                border-radius: 8px; padding: 1rem 1.5rem;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-                z-index: 9999; max-width: 400px;
-                animation: slideIn 0.3s ease-out;">
+                background: ${backgroundColor}; 
+                border: 2px solid ${borderColor};
+                border-radius: 12px; 
+                padding: 1rem 1.5rem;
+                box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+                z-index: 9999; 
+                max-width: 400px;
+                animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);">
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
-                    <span style="color: #333;">${message}</span>
+                    <div style="display: flex; align-items: center; gap: 0.8rem;">
+                        <span style="font-size: 1.5rem;">${icon}</span>
+                        <span style="color: #333; font-weight: 500;">${message}</span>
+                    </div>
                     <button onclick="this.parentElement.parentElement.remove()" 
-                            style="background: none; border: none; font-size: 1.2rem; 
-                                cursor: pointer; color: #666;">✕</button>
+                            style="background: none; border: none; font-size: 1.4rem; 
+                                cursor: pointer; color: #666; transition: transform 0.2s;
+                                padding: 0; line-height: 1;"
+                            onmouseover="this.style.transform='scale(1.2)'"
+                            onmouseout="this.style.transform='scale(1)'">✕</button>
                 </div>
             </div>
         `;
@@ -109,7 +133,7 @@ class RegistriBattesimi {
         setTimeout(() => {
             const notification = document.getElementById('custom-notification');
             if (notification) {
-                notification.style.animation = 'slideOut 0.3s ease-in';
+                notification.style.animation = 'slideOutRight 0.3s ease-in';
                 setTimeout(() => notification.remove(), 300);
             }
         }, 4000);
@@ -647,7 +671,7 @@ class RegistriBattesimi {
                         const isFirstBook = this.books.length === 0; // È il primo se l'array è ancora vuoto
                         totalPages = isFirstBook ? sortedImages.length - 1 : sortedImages.length;
                     }
-                    
+
                     this.books.push({
                         id: folder,
                         name: folder.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),

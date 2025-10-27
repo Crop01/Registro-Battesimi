@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Accesso - Registri Battesimi</title>
     <link rel="stylesheet" href="login-styles.css">
 </head>
@@ -11,38 +12,197 @@
             <div class="login-header">
                 <h2>
                     <img src="assets/logoAdroAI.jpg" 
-                    alt="Chiesa" 
-                    style="height: 45px; vertical-align: middle; margin-right: 15px;">
-                    Registri Parrocchiali</h2>
-                <p>Accesso riservato</p>
+                        alt="Logo Parrocchia" 
+                        class="logo-image">
+                    Registri Parrocchiali
+                </h2>
+                <p>Accesso riservato al personale autorizzato</p>
             </div>
             
             <form id="login-form">
                 <div class="form-group">
-                    <label for="username">Nome utente:</label>
-                    <select id="username" required>
-                        <option value="">Seleziona utente...</option>
-                        <option value="don.adro">Don Adro</option>
+                    <label for="username">Nome utente</label>
+                    <select id="username" required disabled>
+                        <option value="don.adro" selected>Don Adro</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label for="password">Password:</label>
-                    <input type="password" id="password" required placeholder="Inserisci la password">
+                    <label for="password">Password</label>
+                    <input type="password" 
+                        id="password" 
+                        required 
+                        autofocus
+                        placeholder="Inserisci la password"
+                        minlength="6"
+                        autocomplete="current-password">
+                    <small class="hint-text">Minimo 6 caratteri</small>
                 </div>
                 
-                <button type="submit" id="login-btn">Accedi</button>
+                <button type="submit" id="login-btn">
+                    <span class="button-text">Accedi</span>
+                </button>
                 
                 <div id="error-message" class="error-message" style="display: none;"></div>
             </form>
             
             <div class="login-footer">
-                <small>Sistema di gestione registri battesimali<br>
-                Per problemi di accesso contattare l'amministratore</small>
+                <p>Sistema di gestione registri battesimali</p>
+                <p>Per problemi di accesso contattare l'amministratore</p>
             </div>
         </div>
     </div>
     
-    <script src="login.js"></script>
+    <script>
+// Login Manager - Mantiene tutta la logica esistente con miglioramenti estetici
+const { ipcRenderer } = require('electron');
+
+class LoginManager {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        const form = document.getElementById('login-form');
+        const usernameSelect = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+
+        // Gestione submit del form
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.handleLogin();
+        });
+
+        // Gestione tasto Enter
+        passwordInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                await this.handleLogin();
+            }
+        });
+
+        // Nascondi errore quando l'utente inizia a digitare
+        usernameSelect.addEventListener('change', () => {
+            this.hideError();
+        });
+
+        passwordInput.addEventListener('input', () => {
+            this.hideError();
+        });
+    }
+
+    async handleLogin() {
+        const usernameSelect = document.getElementById('username');
+        const username = usernameSelect.disabled ? 'don.adro' : usernameSelect.value;
+        const password = document.getElementById('password').value;
+
+        // Validazione lato client
+        if (!username) {
+            this.showError('Seleziona un nome utente');
+            return;
+        }
+
+        if (!password) {
+            this.showError('Inserisci la password');
+            return;
+        }
+
+        if (password.length < 6) {
+            this.showError('La password deve essere di almeno 6 caratteri');
+            return;
+        }
+
+        // Mostra stato di caricamento
+        this.setLoading(true);
+
+        try {
+            // Invia richiesta di login al processo principale
+            const result = await ipcRenderer.invoke('login-attempt', username, password);
+
+            if (result.success) {
+                // Login riuscito
+                this.showSuccess(`Benvenuto, ${this.getUserDisplayName(result.user)}!`);
+            } else {
+                // Login fallito
+                this.showError(result.message || 'Credenziali non valide');
+                this.setLoading(false);
+                // Pulisci il campo password
+                document.getElementById('password').value = '';
+                document.getElementById('password').focus();
+            }
+        } catch (error) {
+            console.error('Errore durante il login:', error);
+            this.showError('Errore di sistema. Riprova.');
+            this.setLoading(false);
+        }
+    }
+
+    showError(message) {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        errorDiv.style.background = '#f8d7da';
+        errorDiv.style.color = '#721c24';
+        errorDiv.style.border = '1px solid #f5c6cb';
+        
+        // Shake animation
+        errorDiv.style.animation = 'shake 0.5s ease-in-out';
+        setTimeout(() => {
+            errorDiv.style.animation = '';
+        }, 500);
+    }
+
+    showSuccess(message) {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        errorDiv.style.background = '#d4edda';
+        errorDiv.style.color = '#155724';
+        errorDiv.style.border = '1px solid #c3e6cb';
+    }
+
+    hideError() {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.style.display = 'none';
+    }
+
+    setLoading(isLoading) {
+        const loginBtn = document.getElementById('login-btn');
+        const form = document.getElementById('login-form');
+        
+        if (isLoading) {
+            loginBtn.disabled = true;
+            loginBtn.classList.add('loading');
+            form.style.pointerEvents = 'none';
+        } else {
+            loginBtn.disabled = false;
+            loginBtn.classList.remove('loading');
+            form.style.pointerEvents = 'auto';
+        }
+    }
+
+    getUserDisplayName(username) {
+        const displayNames = {
+            'don.adro': 'Don Adro'
+        };
+        return displayNames[username] || username;
+    }
+}
+
+// Inizializza
+document.addEventListener('DOMContentLoaded', () => {
+    new LoginManager();
+});
+
+// Gestione chiusura finestra con Escape
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const { remote } = require('electron');
+        if (remote) {
+            remote.getCurrentWindow().close();
+        }
+    }
+});
+    </script>
 </body>
 </html>
