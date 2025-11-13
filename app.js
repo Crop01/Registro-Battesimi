@@ -15,7 +15,7 @@ class RegistriBattesimi {
 
         this.imageZoomLevels = new Map(); // Tiene traccia dello zoom di ogni immagine
         this.minZoom = 0.5;               // Zoom minimo (50%)
-        this.maxZoom = 3.0;               // Zoom massimo (300%)
+        this.maxZoom = 5.0;               // Zoom massimo (300%)
         this.zoomStep = 0.1;              // Incremento zoom (10%)
 
         this.paginationConfig = {};  // Configurazione paginazione per libro
@@ -26,13 +26,25 @@ class RegistriBattesimi {
     async init() {
         await this.loadPageAnnotations();
         await this.loadPaginationConfig();
-        await this.loadBooks();
-        this.renderBooksList();
+        
+        // ✨ Mostra messaggio di caricamento
+        this.renderBooksListLoading();
+        
+        // ✨ Non aspettare che tutti i libri siano caricati
+        this.loadBooks(); // <-- Rimosso "await"
+    }
 
-        setTimeout(() => {
-            console.log('🔄 Aggiornamento forzato della lista libri...');
-            this.renderBooksList();
-        }, 1000);
+    // ✨ NUOVO METODO: Mostra un messaggio di caricamento
+    renderBooksListLoading() {
+        const booksList = document.getElementById('books-list');
+        if (booksList) {
+            booksList.innerHTML = `
+                <div style="padding: 2rem; text-align: center; color: #666;">
+                    <div style="font-size: 2rem; margin-bottom: 1rem;">⏳</div>
+                    <div style="font-size: 0.9rem;">Caricamento libri in corso...</div>
+                </div>
+            `;
+        }
     }
 
     cleanupAllEventListeners() {
@@ -473,11 +485,18 @@ class RegistriBattesimi {
     }
 
     // Trova l'anno di una pagina
-    getPageYear(bookId, pageIndex) {
+    getPageYear(bookId, photoIndex) {
         if (!this.pageAnnotations[bookId]) return null;
         
+        // Ottieni i numeri di pagina REALI per questa foto
+        const pageNumbers = this.getPageNumbersFromPhotoIndex(photoIndex, this.currentBook);
+        
+        // Se è una copertina, non ha anno
+        if (pageNumbers[0] === 'Copertina') return null;
+        
+        // Cerca l'anno della prima pagina di questa foto
         for (const [year, pages] of Object.entries(this.pageAnnotations[bookId])) {
-            if (pages.includes(pageIndex + 1)) { // +1 perché le pagine sono 1-based nel JSON
+            if (pages.includes(pageNumbers[0])) {
                 return year;
             }
         }
@@ -730,7 +749,7 @@ class RegistriBattesimi {
             'success'
         );
     }
-    
+
     /*
     // SOSTITUISCI ANCHE GLI alert() CON QUESTO METODO:
     showAlert(message) {
@@ -860,7 +879,13 @@ class RegistriBattesimi {
             const imagesPath = path.join(__dirname, 'images');
             const folders = fs.readdirSync(imagesPath, { withFileTypes: true })
                 .filter(dirent => dirent.isDirectory())
-                .map(dirent => dirent.name);
+                .map(dirent => dirent.name)
+                .sort((a, b) => {
+                    // Estrai il numero iniziale dal nome della cartella
+                    const numA = parseInt(a.match(/^(\d+)/)?.[1] || '0');
+                    const numB = parseInt(b.match(/^(\d+)/)?.[1] || '0');
+                    return numA - numB;
+                });
 
             this.books = [];
             
@@ -937,6 +962,12 @@ class RegistriBattesimi {
                     book.totalPages = this.calculateTotalPages(book);
 
                     this.books.push(book);
+
+                    // ✨ Mostra il libro appena caricato immediatamente
+                    this.renderBooksList();
+                    console.log(`✅ Libro "${book.name}" mostrato`);
+
+                    await new Promise(resolve => setTimeout(resolve, 0));
                 }
             }
 
@@ -964,7 +995,13 @@ class RegistriBattesimi {
         
         // Se l'immagine è tra quelle da saltare, non ha numeri di pagina
         if (photoIndex < config.skipImages) {
-            return ['Copertina'];
+            if (photoIndex === 0) {
+                return ['Copertina'];
+            } else if (photoIndex === config.skipImages - 1) {
+                return ['Retro copertina'];
+            } else {
+                return [`Introduzione/Indice ${photoIndex}`];  // o 'Pagina non numerata'
+            }
         }
         
         // Calcola l'indice effettivo (saltando le copertine)
@@ -1012,24 +1049,26 @@ class RegistriBattesimi {
     }
 
     getPhotoIndexFromPageNumber(pageNumber, book) {
-        const isFirstBook = this.books.indexOf(book) === 0;
-    
-        if (!book.hasDoublePages) {
-            if (isFirstBook) {
-                return pageNumber; // Foto 1 = Pagina 1
+        const config = this.getBookPaginationConfig(book.id);
+        
+        let currentPageNumber = config.startPage;
+        
+        // Scorri tutte le foto e conta le pagine fino a trovare quella cercata
+        for (let photoIndex = config.skipImages; photoIndex < book.images.length; photoIndex++) {
+            const pagesInThisImage = config.exceptions[photoIndex] || config.defaultPagesPerImage;
+            
+            // Se la pagina cercata è in questa foto, restituisci l'indice della foto
+            if (pageNumber >= currentPageNumber && pageNumber < currentPageNumber + pagesInThisImage) {
+                console.log(`  🎯 Trovata! Pagina ${pageNumber} è nella foto ${photoIndex} (range: ${currentPageNumber}-${currentPageNumber + pagesInThisImage - 1})`);
+                return photoIndex;
             }
-            return pageNumber - 1;
+            
+            currentPageNumber += pagesInThisImage;
         }
         
-        const totalPhotos = book.images.length;
-        if (pageNumber === 1) return 0;
-        if (pageNumber === 2) return 1;
-        
-        const lastPage = this.calculateDoublePagesCount(totalPhotos);
-        if (pageNumber === lastPage) return totalPhotos - 1;
-        
-        const middlePage = pageNumber - 3;
-        return 2 + Math.floor(middlePage / 2);
+        // Se non trovata, restituisci l'ultima foto
+        console.log(`  ⚠️ Pagina ${pageNumber} non trovata, restituisco ultima foto`);
+        return book.images.length - 1;
     }
 
     getBookYearRange(bookId) {
@@ -1230,7 +1269,7 @@ class RegistriBattesimi {
     }
 
     nextPage() {
-        if (this.currentPage < this.currentBook.totalPages - 1) {
+        if (this.currentPage < this.currentBook.images.length - 1) {  // ← CORREZIONE
             this.currentPage++;
             this.renderBookViewer();
         }
@@ -1382,7 +1421,8 @@ class RegistriBattesimi {
                     <img src="${imagePath}" class="continuous-image" alt="${pageDisplay}" 
                         onclick="app.zoomImage(this)" 
                         onload="app.setupImageZoomListeners(this)" 
-                        loading="lazy">
+                        <!--loading="lazy"-->
+                        >
                 </div>
             `;
         });
@@ -1454,29 +1494,72 @@ class RegistriBattesimi {
     }
 
     zoomImage(img) {
-        // Ottieni il livello di zoom corrente per questa immagine
         const currentZoom = this.imageZoomLevels.get(img) || 1.0;
-        
-        // Toggle tra zoom 1.0 e 2.0 al click
         const newZoom = currentZoom === 1.0 ? 2.0 : 1.0;
         
-        this.setImageZoom(img, newZoom);
+        // Click al centro dell'immagine = zoom centrato
+        this.setImageZoom(img, newZoom, 50, 50);
+    }
+
+    setupImagePanning(img) {
+        let isPanning = false;
+        let startX = 0;
+        let startY = 0;
+        let translateX = 0;
+        let translateY = 0;
+        
+        const handleMouseDown = (e) => {
+            const currentZoom = this.imageZoomLevels.get(img) || 1.0;
+            if (currentZoom > 1.0) {
+                isPanning = true;
+                startX = e.clientX - translateX;
+                startY = e.clientY - translateY;
+                img.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
+        };
+        
+        const handleMouseMove = (e) => {
+            if (!isPanning) return;
+            
+            translateX = e.clientX - startX;
+            translateY = e.clientY - startY;
+            
+            const currentZoom = this.imageZoomLevels.get(img) || 1.0;
+            const originX = parseFloat(img.style.transformOrigin) || 50;
+            const originY = parseFloat(img.style.transformOrigin.split(' ')[1]) || 50;
+            
+            img.style.transform = `scale(${currentZoom}) translate(${translateX}px, ${translateY}px)`;
+        };
+        
+        const handleMouseUp = () => {
+            if (isPanning) {
+                isPanning = false;
+                const currentZoom = this.imageZoomLevels.get(img) || 1.0;
+                img.style.cursor = currentZoom > 1.0 ? 'grab' : 'zoom-in';
+            }
+        };
+        
+        img.addEventListener('mousedown', handleMouseDown);
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        
+        // Salva i riferimenti per cleanup
+        if (!img._panListeners) img._panListeners = {};
+        img._panListeners = { handleMouseDown, handleMouseMove, handleMouseUp };
     }
 
     // ← AGGIUNGI QUESTO NUOVO METODO dopo zoomImage
-    setImageZoom(img, zoomLevel) {
-        // Limita lo zoom tra min e max
+    setImageZoom(img, zoomLevel, originX = 50, originY = 50) {
         zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, zoomLevel));
         
-        // Salva il livello di zoom
         this.imageZoomLevels.set(img, zoomLevel);
         
-        // Applica il transform
+        // 🎯 IMPOSTA IL TRANSFORM ORIGIN AL PUNTO DESIDERATO
+        img.style.transformOrigin = `${originX}% ${originY}%`;
         img.style.transform = `scale(${zoomLevel})`;
-        img.style.transformOrigin = 'center center';
         img.style.transition = 'transform 0.2s ease-out';
         
-        // Cambia il cursore in base allo zoom
         if (zoomLevel > 1.0) {
             img.style.cursor = 'zoom-out';
             img.style.zIndex = '1000';
@@ -1486,7 +1569,6 @@ class RegistriBattesimi {
             img.style.zIndex = 'auto';
         }
         
-        // Mostra un indicatore temporaneo del livello di zoom
         this.showZoomIndicator(Math.round(zoomLevel * 100));
     }
 
@@ -1524,44 +1606,55 @@ class RegistriBattesimi {
 
     // ← AGGIUNGI QUESTO NUOVO METODO
     setupImageZoomListeners(img) {
-        // Previeni il comportamento predefinito dello scroll
         let isZooming = false;
         
         // Zoom con rotella del mouse / touchpad
         const handleWheel = (e) => {
-            // Solo se CTRL è premuto (standard per zoom)
             if (e.ctrlKey) {
                 e.preventDefault();
                 e.stopPropagation();
                 
                 const currentZoom = this.imageZoomLevels.get(img) || 1.0;
-                
-                // deltaY negativo = scroll su = zoom in
-                // deltaY positivo = scroll giù = zoom out
                 const zoomChange = e.deltaY > 0 ? -this.zoomStep : this.zoomStep;
                 const newZoom = currentZoom + zoomChange;
                 
-                this.setImageZoom(img, newZoom);
+                // 🎯 CALCOLA IL PUNTO DI ZOOM RELATIVO ALL'IMMAGINE
+                const rect = img.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width) * 100;
+                const y = ((e.clientY - rect.top) / rect.height) * 100;
+                
+                this.setImageZoom(img, newZoom, x, y);
                 
                 isZooming = true;
                 setTimeout(() => isZooming = false, 100);
             }
         };
         
-        // Zoom con pinch sul touchpad (gesto due dita)
+        // Gestione pinch-to-zoom migliorata
         let initialDistance = 0;
         let initialZoom = 1.0;
+        let touchCenter = { x: 50, y: 50 };
         
         const handleTouchStart = (e) => {
             if (e.touches.length === 2) {
                 e.preventDefault();
                 const touch1 = e.touches[0];
                 const touch2 = e.touches[1];
+                
                 initialDistance = Math.hypot(
                     touch2.clientX - touch1.clientX,
                     touch2.clientY - touch1.clientY
                 );
                 initialZoom = this.imageZoomLevels.get(img) || 1.0;
+                
+                // 🎯 CALCOLA IL CENTRO TRA LE DUE DITA
+                const centerX = (touch1.clientX + touch2.clientX) / 2;
+                const centerY = (touch1.clientY + touch2.clientY) / 2;
+                const rect = img.getBoundingClientRect();
+                touchCenter = {
+                    x: ((centerX - rect.left) / rect.width) * 100,
+                    y: ((centerY - rect.top) / rect.height) * 100
+                };
             }
         };
         
@@ -1578,86 +1671,16 @@ class RegistriBattesimi {
                 const scale = currentDistance / initialDistance;
                 const newZoom = initialZoom * scale;
                 
-                this.setImageZoom(img, newZoom);
+                this.setImageZoom(img, newZoom, touchCenter.x, touchCenter.y);
             }
         };
         
-        // Aggiungi gli event listeners
         img.addEventListener('wheel', handleWheel, { passive: false });
         img.addEventListener('touchstart', handleTouchStart, { passive: false });
         img.addEventListener('touchmove', handleTouchMove, { passive: false });
         
-        // Salva i riferimenti per poterli rimuovere dopo
         img._zoomListeners = { handleWheel, handleTouchStart, handleTouchMove };
-    }
-
-    // ← AGGIUNGI QUESTO NUOVO METODO
-    setupImageZoomListeners(img) {
-        // Previeni il comportamento predefinito dello scroll
-        let isZooming = false;
-        
-        // Zoom con rotella del mouse / touchpad
-        const handleWheel = (e) => {
-            // Solo se CTRL è premuto (standard per zoom)
-            if (e.ctrlKey) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const currentZoom = this.imageZoomLevels.get(img) || 1.0;
-                
-                // deltaY negativo = scroll su = zoom in
-                // deltaY positivo = scroll giù = zoom out
-                const zoomChange = e.deltaY > 0 ? -this.zoomStep : this.zoomStep;
-                const newZoom = currentZoom + zoomChange;
-                
-                this.setImageZoom(img, newZoom);
-                
-                isZooming = true;
-                setTimeout(() => isZooming = false, 100);
-            }
-        };
-        
-        // Zoom con pinch sul touchpad (gesto due dita)
-        let initialDistance = 0;
-        let initialZoom = 1.0;
-        
-        const handleTouchStart = (e) => {
-            if (e.touches.length === 2) {
-                e.preventDefault();
-                const touch1 = e.touches[0];
-                const touch2 = e.touches[1];
-                initialDistance = Math.hypot(
-                    touch2.clientX - touch1.clientX,
-                    touch2.clientY - touch1.clientY
-                );
-                initialZoom = this.imageZoomLevels.get(img) || 1.0;
-            }
-        };
-        
-        const handleTouchMove = (e) => {
-            if (e.touches.length === 2) {
-                e.preventDefault();
-                const touch1 = e.touches[0];
-                const touch2 = e.touches[1];
-                const currentDistance = Math.hypot(
-                    touch2.clientX - touch1.clientX,
-                    touch2.clientY - touch1.clientY
-                );
-                
-                const scale = currentDistance / initialDistance;
-                const newZoom = initialZoom * scale;
-                
-                this.setImageZoom(img, newZoom);
-            }
-        };
-        
-        // Aggiungi gli event listeners
-        img.addEventListener('wheel', handleWheel, { passive: false });
-        img.addEventListener('touchstart', handleTouchStart, { passive: false });
-        img.addEventListener('touchmove', handleTouchMove, { passive: false });
-        
-        // Salva i riferimenti per poterli rimuovere dopo
-        img._zoomListeners = { handleWheel, handleTouchStart, handleTouchMove };
+        this.setupImagePanning(img);// Configura anche il panning
     }
 
     // Nuovo metodo per resettare tutto lo zoom
@@ -1746,14 +1769,32 @@ class RegistriBattesimi {
                 }
             });
             
-            // Se l'anno è nelle annotazioni, vai alla prima pagina di quell'anno
             if (this.pageAnnotations[foundBook.id] && this.pageAnnotations[foundBook.id][year]) {
                 const pages = this.pageAnnotations[foundBook.id][year];
-                const firstPageIndex = pages[0] - 1; // Converti a 0-based
-                this.goToPage(firstPageIndex);
-                this.showAlert(`Libro trovato: ${foundBook.name}. Andando alla prima pagina dell'anno ${year} (pagina ${pages[0]})`);
-            } else {
-                this.showAlert(`Libro trovato: ${foundBook.name}`);
+                const firstPageNumber = pages[0];
+                
+                console.log('🔍 DEBUG Ricerca:');
+                console.log('  Anno cercato:', year);
+                console.log('  Prima pagina annotata:', firstPageNumber);
+                
+                const photoIndex = this.getPhotoIndexFromPageNumber(firstPageNumber, foundBook);
+                console.log('  Photo index calcolato:', photoIndex);
+                
+                // Verifica: quale pagina dovrebbe mostrare questo photoIndex?
+                const verifyPages = this.getPageNumbersFromPhotoIndex(photoIndex, foundBook);
+                console.log('  Verifica - pagine per photo index ' + photoIndex + ':', verifyPages);
+                
+                // In vista continua, dai un po' di tempo per il rendering prima dello scroll
+                if (this.viewMode === 'continuous') {
+                    setTimeout(() => {
+                        this.scrollToPage(photoIndex);
+                        console.log('  Scrolling a data-page:', photoIndex);
+                    }, 500);
+                } else {
+                    this.goToPage(photoIndex);
+                }
+                
+                this.showAlert(`Libro trovato: ${foundBook.name}. Andando alla prima pagina dell'anno ${year} (pagina ${firstPageNumber})`);
             }
             
         } else {

@@ -77,5 +77,94 @@
     "exceptions": {
       "1": 1
     }
+  },
+  "10. Nati": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 25,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "25": 1
+    }
+  },
+  "11. Battezzati": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 1,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "1": 1
+    }
+  },
+  "12. Battezzati": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 1,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "1": 1,
+      "10": 1,
+      "14": 1
+    }
+  },
+  "Registro13": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 1,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "1": 1
+    }
+  },
+  "13. Battezzati": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 1,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "1": 1
+    }
+  },
+  "14. Registro dei battezzati della parrocchia di Adro dell'anno": {
+    "mode": "auto-single",
+    "startPage": 1,
+    "skipImages": 1,
+    "defaultPagesPerImage": 1,
+    "exceptions": {}
+  },
+  "15. Nati a battezzati nella parrocchia di Adro negli anni": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 1,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "1": 1
+    }
+  },
+  "16. Registro dei nati e battezzati nella parr. di Adro": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 1,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "1": 1
+    }
+  },
+  "17. Battezzati": {
+    "mode": "auto-single",
+    "startPage": 1,
+    "skipImages": 28,
+    "defaultPagesPerImage": 1,
+    "exceptions": {}
+  },
+  "18. Battezzati": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 28,
+    "defaultPagesPerImage": 1,
+    "exceptions": {
+      "57": 2,
+      "76": 2
+    }
   }
 }

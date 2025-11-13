@@ -25,7 +25,9 @@ function createLoginWindow() {
     })
 
     loginWindow.loadFile('login.html')
-    
+
+    loginWindow.setMenu(null)// DA DECOMMENTARE QUANDO SI CONSEGNA, ELIMINA IL MENU
+
     loginWindow.once('ready-to-show', () => {
         loginWindow.maximize()
         loginWindow.show()
@@ -52,6 +54,8 @@ function createMainWindow() {
         maximizable: true,
         icon: path.join(__dirname, 'logo.ico')
     })
+
+    //mainWindow.setMenu(null)// DA DECOMMENTARE QUANDO SI CONSEGNA, ELIMINA IL MENU
 
     mainWindow.loadFile('index.html')
     
