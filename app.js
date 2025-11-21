@@ -1313,7 +1313,7 @@ class RegistriBattesimi {
         const pageNumbers = this.getPageNumbersFromPhotoIndex(this.currentPage, this.currentBook);
         const pageDisplay = pageNumbers.length === 1 ? 
             `Pagina ${pageNumbers[0]}` : 
-            `Pagine ${pageNumbers[0]}-${pageNumbers[1]}`;
+            `Pagine ${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`;
         
         const currentYear = this.getPageYear(this.currentBook.id, this.currentPage);
 
@@ -1322,7 +1322,7 @@ class RegistriBattesimi {
         for (let i = 0; i < this.currentBook.images.length; i++) {
             const selected = i === this.currentPage ? 'selected' : '';
             const nums = this.getPageNumbersFromPhotoIndex(i, this.currentBook);
-            const label = nums.length === 1 ? `Pag. ${nums[0]}` : `Pag. ${nums[0]}-${nums[1]}`;
+            const label = nums.length === 1 ? `Pag. ${nums[0]}` : `Pag. ${nums[0]}-${nums[nums.length - 1]}`;
             pageOptions += `<option value="${i}" ${selected}>${label}</option>`;
         }
 
@@ -1406,7 +1406,7 @@ class RegistriBattesimi {
             const pageNumbers = this.getPageNumbersFromPhotoIndex(index, this.currentBook);
             const pageDisplay = pageNumbers.length === 1 ? 
                 `Pagina ${pageNumbers[0]}` : 
-                `Pagine ${pageNumbers[0]}-${pageNumbers[1]}`;
+                `Pagine ${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`;
             
             const year = this.getPageYear(this.currentBook.id, index);
             const yearDisplay = year ? `<span class="page-year">📅 ${year}</span>` : '';
@@ -1494,6 +1494,12 @@ class RegistriBattesimi {
     }
 
     zoomImage(img) {
+        // ← Controlla se è stato un drag prima di zoomare
+        if (img._panListeners && img._panListeners.hasMoved && img._panListeners.hasMoved()) {
+            console.log('⛔ Click ignorato: era un drag');
+            return;
+        }
+        
         const currentZoom = this.imageZoomLevels.get(img) || 1.0;
         const newZoom = currentZoom === 1.0 ? 2.0 : 1.0;
         
@@ -1501,72 +1507,137 @@ class RegistriBattesimi {
         this.setImageZoom(img, newZoom, 50, 50);
     }
 
-    setupImagePanning(img) {
+    setupImagePanning(img, state) {
         let isPanning = false;
         let startX = 0;
         let startY = 0;
         let translateX = 0;
         let translateY = 0;
+        let currentTranslateX = 0;
+        let currentTranslateY = 0;
+        let hasMoved = false;
         
         const handleMouseDown = (e) => {
             const currentZoom = this.imageZoomLevels.get(img) || 1.0;
-            if (currentZoom > 1.0) {
+            if (currentZoom > 1.0 && e.button === 0) {  // Solo click sinistro
                 isPanning = true;
-                startX = e.clientX - translateX;
-                startY = e.clientY - translateY;
+                state.isPanning = true;
+                hasMoved = false;
+                startX = e.clientX;
+                startY = e.clientY;
+                translateX = currentTranslateX;
+                translateY = currentTranslateY;
                 img.style.cursor = 'grabbing';
                 e.preventDefault();
+                e.stopPropagation();
             }
         };
         
         const handleMouseMove = (e) => {
             if (!isPanning) return;
             
-            translateX = e.clientX - startX;
-            translateY = e.clientY - startY;
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            // ← Considera "movimento" solo se si sposta di almeno 3px
+            if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+                hasMoved = true;
+            }
+
+            currentTranslateX = translateX + deltaX;
+            currentTranslateY = translateY + deltaY;
             
             const currentZoom = this.imageZoomLevels.get(img) || 1.0;
-            const originX = parseFloat(img.style.transformOrigin) || 50;
-            const originY = parseFloat(img.style.transformOrigin.split(' ')[1]) || 50;
             
-            img.style.transform = `scale(${currentZoom}) translate(${translateX}px, ${translateY}px)`;
+            // 🎯 Mantieni zoom + translation separati
+            img.style.transform = `scale(${currentZoom}) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
+            img.style.transition = 'none';  // Nessuna transizione durante il drag
         };
         
-        const handleMouseUp = () => {
+        const handleMouseUp = (e) => {
             if (isPanning) {
                 isPanning = false;
+                state.isPanning = false;
                 const currentZoom = this.imageZoomLevels.get(img) || 1.0;
                 img.style.cursor = currentZoom > 1.0 ? 'grab' : 'zoom-in';
+                //img.style.transition = 'transform 0.2s ease-out';
+
+                // ← Se c'è stato movimento, previeni il click di zoomImage
+                if (hasMoved) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
             }
         };
         
-        img.addEventListener('mousedown', handleMouseDown);
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+        // ⚠️ Previeni il doppio click che causa reset
+        const handleDblClick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
         
-        // Salva i riferimenti per cleanup
-        if (!img._panListeners) img._panListeners = {};
-        img._panListeners = { handleMouseDown, handleMouseMove, handleMouseUp };
+        img.addEventListener('mousedown', handleMouseDown, { capture: true });
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp, { capture: true });
+        img.addEventListener('dblclick', handleDblClick);
+        
+        // Salva i riferimenti + lo stato della translation
+        img._panListeners = { 
+            handleMouseDown, 
+            handleMouseMove, 
+            handleMouseUp, 
+            handleDblClick,
+            getTranslation: () => ({ x: currentTranslateX, y: currentTranslateY }),
+            resetTranslation: () => {
+                currentTranslateX = 0;
+                currentTranslateY = 0;
+                translateX = 0;
+                translateY = 0;
+            },
+            hasMoved: () => hasMoved 
+        };
     }
 
     // ← AGGIUNGI QUESTO NUOVO METODO dopo zoomImage
     setImageZoom(img, zoomLevel, originX = 50, originY = 50) {
         zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, zoomLevel));
         
+        const currentTransition = img.style.transition;
+
         this.imageZoomLevels.set(img, zoomLevel);
         
-        // 🎯 IMPOSTA IL TRANSFORM ORIGIN AL PUNTO DESIDERATO
         img.style.transformOrigin = `${originX}% ${originY}%`;
-        img.style.transform = `scale(${zoomLevel})`;
-        img.style.transition = 'transform 0.2s ease-out';
+        
+        // 🎯 Mantieni la translation corrente se esiste
+        let translation = '';
+        if (img._panListeners && img._panListeners.getTranslation) {
+            const { x, y } = img._panListeners.getTranslation();
+            if (x !== 0 || y !== 0) {
+                translation = ` translate(${x}px, ${y}px)`;
+            }
+        }
+        
+        img.style.transform = `scale(${zoomLevel})${translation}`;
+        
+        // Controlla se c'è un panning attivo prima di mettere la transition
+        if (currentTransition !== 'none') {
+            img.style.transition = 'transform 0.2s ease-out';
+        }
         
         if (zoomLevel > 1.0) {
-            img.style.cursor = 'zoom-out';
+            img.style.cursor = 'grab';
             img.style.zIndex = '1000';
             img.style.position = 'relative';
         } else {
             img.style.cursor = 'zoom-in';
             img.style.zIndex = 'auto';
+            // Reset translation quando si torna a zoom 1.0
+            if (img._panListeners && img._panListeners.resetTranslation) {
+                img._panListeners.resetTranslation();
+            }
         }
         
         this.showZoomIndicator(Math.round(zoomLevel * 100));
@@ -1606,10 +1677,30 @@ class RegistriBattesimi {
 
     // ← AGGIUNGI QUESTO NUOVO METODO
     setupImageZoomListeners(img) {
+
+        // 🧹 PULISCI event listener esistenti prima di aggiungerne di nuovi
+        if (img._zoomListeners) {
+            img.removeEventListener('wheel', img._zoomListeners.handleWheel);
+            img.removeEventListener('touchstart', img._zoomListeners.handleTouchStart);
+            img.removeEventListener('touchmove', img._zoomListeners.handleTouchMove);
+        }
+        
+        if (img._panListeners) {
+            img.removeEventListener('mousedown', img._panListeners.handleMouseDown);
+            document.removeEventListener('mousemove', img._panListeners.handleMouseMove);
+            document.removeEventListener('mouseup', img._panListeners.handleMouseUp);
+            img.removeEventListener('dblclick', img._panListeners.handleDblClick);
+        }
+
         let isZooming = false;
+
+        const state = { isPanning: false };
         
         // Zoom con rotella del mouse / touchpad
         const handleWheel = (e) => {
+
+            if(state.isPanning) return; // Evita conflitti con il panning
+
             if (e.ctrlKey) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1680,7 +1771,7 @@ class RegistriBattesimi {
         img.addEventListener('touchmove', handleTouchMove, { passive: false });
         
         img._zoomListeners = { handleWheel, handleTouchStart, handleTouchMove };
-        this.setupImagePanning(img);// Configura anche il panning
+        this.setupImagePanning(img, state);// Configura anche il panning
     }
 
     // Nuovo metodo per resettare tutto lo zoom
@@ -1693,14 +1784,21 @@ class RegistriBattesimi {
         }
         
         images.forEach(img => {
-            this.setImageZoom(img, 1.0);
+            // Reset zoom
             this.imageZoomLevels.delete(img);
             
-            // Reset completo degli stili
+            // Reset translation
+            if (img._panListeners && img._panListeners.resetTranslation) {
+                img._panListeners.resetTranslation();
+            }
+            
+            // Reset stili
             img.style.transform = 'scale(1)';
+            img.style.transformOrigin = '50% 50%';
             img.style.cursor = 'zoom-in';
             img.style.zIndex = 'auto';
             img.style.position = 'static';
+            img.style.transition = '';
         });
         
         this.showNotification('Zoom ripristinato al 100%', 'success');

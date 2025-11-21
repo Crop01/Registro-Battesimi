@@ -166,5 +166,96 @@
       "57": 2,
       "76": 2
     }
+  },
+  "19. Battezzati": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 19,
+    "defaultPagesPerImage": 1,
+    "exceptions": {
+      "61": 2,
+      "62": 2
+    }
+  },
+  "20. Battezzati": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 21,
+    "defaultPagesPerImage": 1,
+    "exceptions": {
+      "24": 2
+    }
+  },
+  "21. Battezzati": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 3,
+    "defaultPagesPerImage": 1,
+    "exceptions": {
+      "59": 2
+    }
+  },
+  "22. Atti di nascita": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 2,
+    "defaultPagesPerImage": 1,
+    "exceptions": {}
+  },
+  "23. Libro Registro - Battezzati della parrocchia di Adro": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 2,
+    "defaultPagesPerImage": 1,
+    "exceptions": {
+      "22": 2,
+      "55": 2
+    }
+  },
+  "24. Registro dei battezzati dell'anno": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 2,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "2": 1,
+      "12": 4,
+      "114": 1,
+      "115": 1,
+      "177": 4
+    }
+  },
+  "25. Registro dei battesimi della parrocchia di Adro": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 2,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "2": 1,
+      "79": 1,
+      "180": 3
+    }
+  },
+  "26. Registro dei battesimi della parrocchia di Adro": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 2,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "2": 1
+    }
+  },
+  "27. Registro battesimi": {
+    "mode": "manual",
+    "startPage": 1,
+    "skipImages": 2,
+    "defaultPagesPerImage": 2,
+    "exceptions": {
+      "2": 1,
+      "79": 1,
+      "80": 1,
+      "98": 1,
+      "99": 1
+    }
   }
 }
